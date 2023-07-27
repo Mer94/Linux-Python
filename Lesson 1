@@ -1,0 +1,66 @@
+"""
+Написать функцию на Python, которой передаются в качестве параметров команда и текст. 
+Функция должна возвращать True, если команда успешно выполнена и текст найден в её выводе и False в противном случае. 
+Передаваться должна только одна строка, разбиение вывода использовать не нужно.
+"""
+
+import subprocess
+
+def is_text_in_command_output(command, text):
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if text in result.stdout:
+            return True
+        else:
+            return False
+    except Exception:
+        return False
+
+command = "ls"  # Замените на свою команду
+text_to_find = "file.txt"  # Замените на текст, который нужно найти
+
+if is_text_in_command_output(command, text_to_find):
+    print("Текст найден в выводе команды.")
+else:
+    print("Текст не найден в выводе команды.")
+
+
+"""
+Доработать функцию из предыдущего задания таким образом, чтобы у неё появился дополнительный режим работы,
+в котором вывод разбивается на слова с удалением всех знаков пунктуации (их можно взять из списка string.punctuation модуля string). 
+В этом режиме должно проверяться наличие слова в выводе.
+"""
+
+import subprocess
+import re
+import string
+
+def is_text_in_command_output(command, text, split_mode=False):
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output_text = result.stdout.strip()  # Убираем лишние пробелы и символы переноса строки
+
+        if split_mode:
+            # Разбиваем текст на слова и удаляем знаки пунктуации
+            words = re.findall(r'\b\w+\b', output_text)
+            words_without_punctuation = [word.translate(str.maketrans('', '', string.punctuation)) for word in words]
+            if text in words_without_punctuation:
+                return True
+            else:
+                return False
+        else:
+            if text in output_text:
+                return True
+            else:
+                return False
+    except Exception:
+        return False
+
+# Пример использования:
+command = "ls"  # Замените на свою команду
+text_to_find = "file"  # Замените на текст, который нужно найти
+
+if is_text_in_command_output(command, text_to_find, split_mode=True):
+    print("Текст найден в выводе команды.")
+else:
+    print("Текст не найден в выводе команды.")
