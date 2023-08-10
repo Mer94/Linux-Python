@@ -1,1 +1,121 @@
+"""
+Дополнить проект фикстурой, которая после каждого шага теста дописывает в заранее созданный файл stat.txt строку вида:
+время, кол-во файлов из конфига, размер файла из конфига, статистика загрузки процессора из файла /proc/loadavg (можно писать просто всё содержимое этого файла).
+"""
+
+import subprocess
+import zlib
+import pytest
+import time
+import os
+
+# Фикстура для создания временных папок
+@pytest.fixture
+def temp_dirs(tmp_path):
+    tst_dir = tmp_path / "tst"
+    out_dir = tmp_path / "out"
+    tst_dir.mkdir()
+    out_dir.mkdir()
+    return tst_dir, out_dir
+
+# Фикстура для выполнения команды и проверки результата
+@pytest.fixture
+def checkout(temp_dirs):
+    def _checkout(cmd, text):
+        result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, encoding='utf-8')
+        if text in result.stdout and result.returncode == 0:
+            return True
+        else:
+            return False
+    return _checkout
+
+# Фикстура для расчета CRC32 хеша
+@pytest.fixture
+def calculate_crc32():
+    def _calculate_crc32(file_path):
+        with open(file_path, 'rb') as file:
+            data = file.read()
+            crc32_hash = zlib.crc32(data)
+            return crc32_hash
+    return _calculate_crc32
+
+# Фикстура для записи статистики
+@pytest.fixture
+def write_stat():
+    def _write_stat(step, config_file, cpu_file):
+        stat_file = "stat.txt"
+        with open(stat_file, "a") as f:
+            f.write(f"Step {step}:\n")
+            f.write(f"Time: {time.ctime()}\n")
+
+            # Получить количество файлов и размер из конфига
+            num_files = len(open(config_file).readlines())
+            file_size = os.path.getsize(config_file)
+            f.write(f"Number of files: {num_files}\n")
+            f.write(f"File size: {file_size} bytes\n")
+
+            # Загрузка процессора из файла /proc/loadavg
+            with open(cpu_file, 'r') as cpu_f:
+                cpu_data = cpu_f.read().strip()
+            f.write(f"CPU Load: {cpu_data}\n\n")
+    return _write_stat
+
+# Тесты
+def test_step1(checkout, write_stat, temp_dirs):
+    tst_dir, out_dir = temp_dirs
+    config_file = tst_dir / "config.txt"
+    config_file.write_text("file1.txt\nfile2.txt\nfile3.txt")
+
+    assert checkout(f"cd {tst_dir}; touch file1.txt file2.txt file3.txt", "Everything is ok")
+    write_stat(1, config_file, "/proc/loadavg")
+
+def test_step2(checkout, write_stat, temp_dirs):
+    tst_dir, out_dir = temp_dirs
+    config_file = tst_dir / "config.txt"
+    config_file.write_text("file1.txt\nfile2.txt\nfile3.txt")
+
+    assert checkout(f"cd {tst_dir}; 7z a {out_dir}/arx2", "Everything is ok")
+    write_stat(2, config_file, "/proc/loadavg")
+
+def test_step3(checkout, write_stat, temp_dirs):
+    tst_dir, out_dir = temp_dirs
+    config_file = tst_dir / "config.txt"
+    config_file.write_text("file1.txt\nfile2.txt\nfile3.txt")
+
+    assert checkout(f"cd {out_dir}; 7z e {out_dir}/arx2.7z -o{out_dir}/folder1 -y", "Everything is ok")
+    write_stat(3, config_file, "/proc/loadavg")
+
+def test_step4(checkout, write_stat, temp_dirs):
+    tst_dir, out_dir = temp_dirs
+    config_file = tst_dir / "config.txt"
+    config_file.write_text("file1.txt\nfile2.txt\nfile3.txt")
+
+    assert checkout(f"cd {out_dir}; 7z t {out_dir}/arx2.7z", "Everything is ok")
+    write_stat(4, config_file, "/proc/loadavg")
+
+def test_step5(calculate_crc32, checkout, write_stat, temp_dirs):
+    tst_dir, out_dir = temp_dirs
+    config_file = tst_dir / "config.txt"
+    config_file.write_text("file1.txt\nfile2.txt\nfile3.txt")
+
+    assert checkout(f"cd {out_dir}; 7z h {out_dir}/arx2.7z", "CRC32 = 17F46254"), "CRC32 hash mismatch"
+    crc32_hash = calculate_crc32(f"{out_dir}/arx2.7z")
+    assert crc32_hash == 0x17F46254, "CRC32 hash mismatch"
+    write_stat(5, config_file, "/proc/loadavg")
+
+def test_step6(checkout, write_stat, temp_dirs):
+    tst_dir, out_dir = temp_dirs
+    config_file = tst_dir / "config.txt"
+    config_file.write_text("file1.txt\nfile2.txt\nfile3.txt")
+
+    assert checkout(f"cd {out_dir}; 7z l {out_dir}/arx2.7z", "file1.txt\nfile2.txt\nfile3.txt\n"), "File list mismatch"
+    write_stat(6, config_file, "/proc/loadavg")
+
+def test_step7(checkout, write_stat, temp_dirs):
+    tst_dir, out_dir = temp_dirs
+    config_file = tst_dir / "config.txt"
+    config_file.write_text("file1.txt\nfile2.txt\nfile3.txt")
+
+    assert checkout(f"cd {out_dir}; 7z x {out_dir}/arx2.7z -o{out_dir}/folder1 -y", "Everything is ok")
+    write_stat(7, config_file, "/proc/loadavg")
 
